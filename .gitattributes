@@ -1,0 +1,5 @@
+# Normalize all text to LF so source + fixtures are byte-identical on Windows dev and Linux CI.
+* text=auto eol=lf
+*.png binary
+*.xlsx binary
+*.pdf binary
