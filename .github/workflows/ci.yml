@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+# Deterministic core only. Tesseract/VLM rungs are NOT installed or exercised here.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install deterministic dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests (unit + golden corpus acceptance gate)
+        env:
+          EXTRACTAPP_DISABLE_OCR: "1"   # force-skip the optional OCR rung in CI
+          EXTRACTAPP_DISABLE_VLM: "1"   # VLM never runs in CI
+        run: pytest -q
+
+      - name: Determinism check (byte-stable output across two runs)
+        env:
+          EXTRACTAPP_DISABLE_OCR: "1"
+          EXTRACTAPP_DISABLE_VLM: "1"
+        run: pytest -q tests/test_determinism.py

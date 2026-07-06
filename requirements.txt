@@ -1,0 +1,10 @@
+# Deterministic core — everything CI needs. Poppler-free, Windows-safe.
+pymupdf>=1.24        # PDF text + table geometry (find_tables) + rasterization
+pdfplumber>=0.11     # pure-Python second-source text reader (pdfminer.six, no Poppler)
+openpyxl>=3.1        # xlsx serializer
+pandas>=2.0          # workbook read-back / validation
+pytest>=8.0          # test runner (golden corpus is the acceptance gate)
+
+# Optional, NEVER imported at module top-level, NEVER exercised in CI:
+#   Tesseract OCR  -> external binary, auto-detected at runtime; absent -> rung degrades to needs_vision
+#   VLM last rung  -> off by default, cached, key via env only
