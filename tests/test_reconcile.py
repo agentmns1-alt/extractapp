@@ -39,9 +39,17 @@ def test_hard_broken_unique_fix_via_constraint():
 
 
 def test_hard_broken_unconfirmable_quarantines():
+    # no image capability at all -> unconfirmable
+    ctx = RD.Ctx(primary="0.53", candidates=["0.53"], hard_ok=hard_in(-1.02, -0.04))
+    d = RC.reconcile(ctx, REQ, pdf_reader=None, image_reader=None)
+    assert d.value is None and d.quarantine == "hard-fail-unconfirmable"
+
+
+def test_hard_broken_needs_vision_when_image_unavailable():
+    # an image rung exists but reads nothing -> needs-vision-hard-fail (still quarantined)
     ctx = RD.Ctx(primary="0.53", candidates=["0.53"], hard_ok=hard_in(-1.02, -0.04))
     d = RC.reconcile(ctx, REQ, pdf_reader=None, image_reader=lambda r: None)
-    assert d.value is None and d.quarantine == "hard-fail-unconfirmable"
+    assert d.value is None and d.quarantine == "needs-vision-hard-fail"
 
 
 def test_hard_broken_ambiguous_quarantines():

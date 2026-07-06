@@ -161,7 +161,13 @@ class FixtureReader:
 def run_ladder(ctx: Ctx, req: Req,
                pdf_reader: Optional[Callable] = pdfplumber_reader,
                image_reader: Optional[Callable] = tesseract_reader) -> Optional[Reading]:
-    """Return the winning second-source reading, or a needs_vision / ambiguous sentinel, or None."""
+    """Return the winning second-source reading, or a needs_vision / ambiguous sentinel, or None.
+
+    `needs_vision` is returned only when an image is genuinely required — a text-vs-text
+    disagreement, or a hard-broken primary — never merely because the image rung is unavailable
+    for a clean value (that value is simply text-only, handled by the caller's rubric).
+    """
+    primary_broken = ctx.primary is not None and not ctx.hard_ok(ctx.primary)
     image_needed = False
 
     # (a) pdfplumber
@@ -184,11 +190,14 @@ def run_ladder(ctx: Ctx, req: Req,
         ir = image_reader(req)
         if ir is not None:
             if ir.rung == "needs_vision":
-                return ir
-            if ir.value is not None and ctx.hard_ok(ir.value):
+                if image_needed or primary_broken:
+                    return ir                         # an image would settle it, but none available
+            elif ir.value is not None and ctx.hard_ok(ir.value):
                 return ir._replace(modality="table-image")
 
     # (d) VLM stub — off by default
     if image_needed:
         return NEEDS_VISION
-    return None
+    if primary_broken and image_reader is not None:
+        return NEEDS_VISION                            # an image could settle it, but none read
+    return None                                        # no image capability -> caller quarantines
