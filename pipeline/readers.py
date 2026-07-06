@@ -25,15 +25,17 @@ from typing import Optional, Callable, List
 from . import numbers as N
 
 Reading = namedtuple("Reading", "value reader_conf modality rung")
-Req = namedtuple("Req", "page bbox cell_text pdf_path page_image_path")
+# `target` = the specific (canonical) number being sought, so a multi-number cell
+# ("0.51 (-0.10 to 1.12)") yields the right component per field.
+Req = namedtuple("Req", "page bbox cell_text pdf_path page_image_path target")
 Ctx = namedtuple("Ctx", "primary candidates hard_ok")
 
 NEEDS_VISION = Reading(None, "low", "table-image", "needs_vision")
 AMBIGUOUS = Reading(None, "low", "derived", "ambiguous")
 
 
-def _req(page=None, bbox=None, cell_text=None, pdf_path=None, page_image_path=None) -> Req:
-    return Req(page, bbox, cell_text, pdf_path, page_image_path)
+def _req(page=None, bbox=None, cell_text=None, pdf_path=None, page_image_path=None, target=None) -> Req:
+    return Req(page, bbox, cell_text, pdf_path, page_image_path, target)
 
 
 # ---------- availability (never a hard dependency) ----------
@@ -150,7 +152,10 @@ class FixtureReader:
         return tuple(k) if isinstance(k, (list, tuple)) else k
 
     def __call__(self, req: Req) -> Optional[Reading]:
-        for key in ((req.page, tuple(req.bbox)) if req.bbox else None, req.cell_text):
+        candidates = [req.target,                                   # per-number truth (multi-number cells)
+                      (req.page, tuple(req.bbox)) if req.bbox else None,
+                      req.cell_text]
+        for key in candidates:
             if key is not None and self._key(key) in self.mapping:
                 v = N.canonical(self.mapping[self._key(key)])
                 return Reading(v, "high", "table-image", "fixture") if v else None
