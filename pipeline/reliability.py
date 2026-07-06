@@ -120,8 +120,9 @@ def _rows(data, key):
     return [] if v is None else (v if isinstance(v, list) else [v])
 
 
-def process(data, grids=None, spans=None, pdf_reader=RD.pdfplumber_reader,
-            image_reader=RD.tesseract_reader, alpha=None, run_ts=None):
+def process(data, grids=None, spans=None, pdf_reader=None, image_reader=None, alpha=None, run_ts=None):
+    # Readers are opt-in (None = disabled) so a bare run is deterministic and never touches a binary.
+    # Production callers pass readers.pdfplumber_reader / readers.tesseract_reader explicitly.
     data = copy.deepcopy(data)
     if alpha is None:
         rev = data.get("review") or {}
@@ -212,8 +213,9 @@ def process(data, grids=None, spans=None, pdf_reader=RD.pdfplumber_reader,
 
     tel["quarantine_rate"] = round(tel["quarantined"] / tel["numbers"], 4) if tel["numbers"] else 0.0
     tel["confirmed_rate"] = round(tel["confirmed"] / tel["numbers"], 4) if tel["numbers"] else 0.0
+    from . import validate as V
     report = {"quarantine": quarantine, "annotations": annotations, "telemetry": tel,
-              "checks": _summary_checks(data, alpha), "run_ts": run_ts}
+              "checks": V.validate_data(data, alpha)["checks"], "run_ts": run_ts}
     return data, report
 
 
@@ -237,26 +239,3 @@ def _rubric(d: RC.Decision, deriv, field_soft) -> str:
     if directly:
         return "medium"                               # text-only, battery-clean, directly reported
     return "medium"
-
-
-def _summary_checks(data, alpha):
-    """Aggregate the battery over the CLEANED data -> per-check pass/fail counts for VALIDATION."""
-    agg = {}
-    for sheet in ("estimates", "armdata", "baseline"):
-        for rec in _rows(data, sheet):
-            if not isinstance(rec, dict):
-                continue
-            for c in _battery(sheet, rec, alpha):
-                k = (c.name, c.tier)
-                a = agg.setdefault(k, {"name": c.name, "tier": c.tier, "fail": 0, "na": 0, "pass": 0})
-                a[c.status] = a.get(c.status, 0) + 1
-    out = []
-    for (name, tier), a in sorted(agg.items()):
-        if a["fail"] and tier == B.HARD:
-            status = "FAIL"                            # a hard fail after cleaning blocks release
-        elif a["fail"]:
-            status = "WARN"                            # soft / guarded residue
-        else:
-            status = "PASS"
-        out.append({"name": name, "tier": tier, "status": status, "fail": a["fail"], "detail": ""})
-    return out
