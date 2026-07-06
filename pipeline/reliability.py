@@ -155,9 +155,12 @@ def process(data, grids=None, spans=None, pdf_reader=None, image_reader=None, al
 
             for field in NUMERIC.get(sheet, []):
                 raw = rec.get(field)
-                canon = N.canonical(raw)
-                if canon is None:
+                if raw is None or str(raw).strip() == "":
                     continue
+                canon = N.canonical(raw)
+                cands = _candidates(raw, canon)
+                if canon is None and not cands:
+                    continue                          # truly not a number
                 tel["numbers"] += 1
                 # unlocalizable -> quarantine (only when localization was attempted for a table sheet)
                 if attempted and loc is None and sheet in PRIMARY:
@@ -167,7 +170,7 @@ def process(data, grids=None, spans=None, pdf_reader=None, image_reader=None, al
                     continue
 
                 ok = _make_ok(sheet, rec, field, alpha)
-                ctx = RD.Ctx(primary=canon, candidates=_candidates(raw, canon), hard_ok=ok)
+                ctx = RD.Ctx(primary=canon, candidates=cands, hard_ok=ok)
                 req = RD._req(page=page, bbox=bbox, cell_text=cell_text, target=canon,
                               pdf_path=rec.get("_pdf_path"), page_image_path=rec.get("_page_image"))
                 d = RC.reconcile(ctx, req, pdf_reader=pdf_reader, image_reader=image_reader)
